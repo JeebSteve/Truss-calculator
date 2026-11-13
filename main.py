@@ -3,34 +3,36 @@ from dataclasses import dataclass, field
 from typing import Dict
 import math
 import base64
-'''
-DATACLASS SECTION
-****************************************
-'''
+
+# ==========================================
+# DATACLASS SECTION
+# ==========================================
+
 @dataclass
 class TrussMember:
     '''stores data for each independent bar of a truss'''
-    id:str
-    member_type:str
+    id: str
+    member_type: str
     length: float
-    axial_force:float
+    axial_force: float
     is_zero_force: bool
 
 @dataclass
 class State:
     '''state'''
     truss_type: str = 'Pratt'
-    span_length:float = 12
-    height: float
-    num_bays:int
-    num_joints:int
-    applied_load:float
-    distribute_load:bool
-    members: Dict[str,TrussMember]
-'''
-FUNCTIONS!!!
-********************************************'''
+    span_length: float = 12.0
+    height: float = 3.0
+    num_bays: int = 4
+    num_joints: int = 10
+    applied_load: float = 50.0
+    distribute_load: bool = False
+    members: Dict[str, TrussMember] = field(default_factory=dict)
+    feedback_message: str = "Welcome! Configure parameters to run statics analysis."
 
+# ==========================================
+# FUNCTIONS
+# ==========================================
 
 def draw_truss_visualizer(state: State) -> Image:
     """Generates the 2D SVG vector graphic and returns a native Drafter Image component."""
@@ -133,7 +135,7 @@ def draw_truss_visualizer(state: State) -> Image:
     svg_elements.append(pin_support)
     svg_elements.append(roller_support)
 
-    # 4. Render Joint Nodes & Force Labels
+    # 4. Render Joint Nodes
     for nx, ny in nodes_bot + nodes_top:
         node_tag = '<circle cx="%s" cy="%s" r="5" fill="#0f172a" stroke="#ffffff" stroke-width="1.5" />' % (str(nx), str(ny))
         svg_elements.append(node_tag)
@@ -153,10 +155,10 @@ def draw_truss_visualizer(state: State) -> Image:
         str(width), str(height), str(width), str(height), "\n".join(svg_elements)
     )
 
-    # Encode SVG to Base64 so Drafter's Image() renders it cleanly without stripping tags
     svg_b64 = base64.b64encode(svg_code.encode("utf-8")).decode("utf-8")
     return Image("data:image/svg+xml;base64," + svg_b64)
- 
+
+
 def compute_truss(state: State) -> Dict[str, TrussMember]:
     """calculates all internal forces by using basic trigonometry"""
     members = dict()
@@ -195,10 +197,10 @@ def compute_truss(state: State) -> Dict[str, TrussMember]:
 
     return members
 
-''' ROUTES
-***********************************
-'''
-#home
+# ==========================================
+# ROUTES
+# ==========================================
+
 @route("/")
 def index(state: State) -> Page:
     """Home view providing system overview and navigation."""
@@ -210,13 +212,12 @@ def index(state: State) -> Page:
     ])
 
 
-#user input
 @route("/builder")
 def builder(state: State) -> Page:
     """Inputs page containing SelectBox, TextBox, and CheckBox components."""
     return Page(state, [
-        " Step 1: Input System Parameters",
-        "Status: " + state.feedback_message,
+        "### Step 1: Input System Parameters",
+        "**Status:** " + state.feedback_message,
         "Select Truss Profile Type:",
         SelectBox("truss_type", ["Pratt", "Howe", "Warren"], state.truss_type),
         "Total Span Length (m):",
@@ -231,7 +232,6 @@ def builder(state: State) -> Page:
         CheckBox("distribute_load", state.distribute_load),
         Button("Calculate Statics & Forces", "/calculate")
     ])
-
 
 
 @route("/calculate")
@@ -261,7 +261,6 @@ def run_analysis(
         state.feedback_message = "Error: Number of bays must be an even integer (minimum 2)."
         return builder(state)
 
-   
     state.span_length = span
     state.height = h
     state.num_bays = bays
@@ -270,14 +269,12 @@ def run_analysis(
     state.distribute_load = distribute_load
     state.num_joints = (2 * bays) + 2
 
-    #shows calculations
     state.members = compute_truss(state)
     state.feedback_message = "Statics equilibrium calculated successfully!"
 
     return view_results(state)
 
 
-# results page
 @route("/results")
 def view_results(state: State) -> Page:
     """Displays reaction summary, force distribution, and 2D SVG diagram."""
@@ -314,7 +311,6 @@ def view_results(state: State) -> Page:
     ])
 
 
-# results for each member
 @route("/members")
 def view_members(state: State) -> Page:
     """Breakdown table showing length, force, and state for every bar."""
@@ -330,21 +326,19 @@ def view_members(state: State) -> Page:
     ])
 
 
-# theory page
 @route("/theory")
 def theory(state: State) -> Page:
     """Educational page explaining Pratt vs. Howe vs. Warren statics."""
     return Page(state, [
-        "Civil Engineering Statics Reference",
-        "Pratt Truss: Diagonals slope downward toward the center. Under gravity loads, diagonals act in TENSION while shorter verticals act in COMPRESSION.",
-        "Howe Truss: Diagonals slope upward toward the center. Diagonals carry COMPRESSION while verticals carry TENSION.",
-        "Warren Truss: Equilateral triangle arrangement that alternates tension and compression along adjacent web members.",
+        "### Civil Engineering Statics Reference",
+        "**Pratt Truss:** Diagonals slope downward toward the center. Under gravity loads, diagonals act in TENSION while shorter verticals act in COMPRESSION.",
+        "**Howe Truss:** Diagonals slope upward toward the center. Diagonals carry COMPRESSION while verticals carry TENSION.",
+        "**Warren Truss:** Equilateral triangle arrangement that alternates tension and compression along adjacent web members.",
         Button("Return to Home View", "/"),
         Button("Reset Application Baseline", "/reset")
     ])
 
 
-# reset button
 @route("/reset")
 def reset_app(state: State) -> Page:
     """Resets state fields back to default baseline configurations."""
@@ -360,3 +354,4 @@ def reset_app(state: State) -> Page:
 
 
 start_server(State())
+
